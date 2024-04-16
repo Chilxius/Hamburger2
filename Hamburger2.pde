@@ -1,7 +1,7 @@
 import processing.sound.*;
 
 //16 hours, 30 orders, extras added at 9am, 1pm, 5pm, and 9pm
-int orderDelays[] = {0,0,0,0,5,5,10,10,15,15,20,20,25,25,30,30,35,35,40,40,45,45,50,50,50,55,55,60,60,70};
+int orderDelays[] = {0,0,0,0,5,5,5,10,10,15,15,20,20,25,25,30,30,35,35,40,40,45,55,50,50,50,55,55,60,60};
 ArrayList<Order> futureOrders = new ArrayList<Order>();
 
 Item emptyItem = new Item(-1);
@@ -45,6 +45,8 @@ String tabText[] = new String[6];
 boolean lingoScreen = false;
 
 boolean gameEnd = false;
+boolean wonGame = false;
+float shutterY = 0;
 
 //SOUND
 SoundFile SFX[] = new SoundFile[9];
@@ -96,7 +98,7 @@ void draw()
         
     if( nextOrderTimer <=0 )
     {
-      futureOrders.add( new Order( int(random(90,45)), orderByLevel() ) );
+      futureOrders.add( new Order( int(random(120,60)), orderByLevel() ) );
       nextOrderIndex++;
       if( nextOrderIndex < orderDelays.length )
         nextOrderTimer = orderDelays[nextOrderIndex];
@@ -119,7 +121,16 @@ void draw()
     
   handleGhostWords();
   
-  //drawHungerIssue();
+  //Game Over Items
+  if( satisfaction <= 0 )
+    gameEnd = true;
+  if( time > 1440 )
+  {
+    gameEnd = true;
+    wonGame = true;
+  }
+  if( gameEnd || shutterY > 0 )
+    drawShutter();
 }
 
 void setVariables()
@@ -130,6 +141,18 @@ void setVariables()
   buttonHeight = int(height/7);
 }
 
+void drawShutter()
+{
+  if(!gameEnd)
+    shutterY-=20;
+  else if( shutterY < height+50 )
+    shutterY+=20;
+    
+  fill(150);
+  strokeWeight(4);
+  stroke(255);
+  rect(0,-50, width, shutterY, 50);
+}
   
 boolean checkForLatePenalties( Order o )
 {
@@ -153,7 +176,7 @@ void checkForRush()
     futureOrders.add( new Order( 120, orderByLevel() ) );
     words.add( new GhostWords( "Breakfast Time!", 100 ) );
   }
-  if( time == 780 ) //lunch at 1
+  else if( time == 780 ) //lunch at 1
   {
     futureOrders.add( new Order( 80, orderByLevel() ) );
     futureOrders.add( new Order( 90, orderByLevel() ) );
@@ -161,7 +184,7 @@ void checkForRush()
     futureOrders.add( new Order( 110, orderByLevel() ) );
     words.add( new GhostWords( "Lunch Rush!", 100 ) );
   }
-  if( time == 1020 ) //dinner at 5
+  else if( time == 1020 ) //dinner at 5
   {
     futureOrders.add( new Order( 70, orderByLevel() ) );
     futureOrders.add( new Order( 80, orderByLevel() ) );
@@ -170,7 +193,7 @@ void checkForRush()
     futureOrders.add( new Order( 110, orderByLevel() ) );
     words.add( new GhostWords( "Supper Crowd!", 100 ) );
   }
-  if( time == 1260 ) //bus at 9
+  else if( time == 1260 ) //bus at 9
   {
     futureOrders.add( new Order( 70, orderByLevel() ) );
     futureOrders.add( new Order( 70, orderByLevel() ) );
@@ -179,6 +202,10 @@ void checkForRush()
     futureOrders.add( new Order( 150, orderByLevel() ) );
     futureOrders.add( new Order( 30, orderByLevel() ) );
     words.add( new GhostWords( "Bus on the lot!", 100 ) );
+  }
+  else if ( time != 480 && time %45 == 0 )
+  {
+    futureOrders.add( new Order( 60, orderByLevel() ) );
   }
 }
 
@@ -239,11 +266,11 @@ int orderByLevel()
   if( level == 3 )
     return int(random(14));
   if( level == 4 )
-    return int(random(16));
+    return int(random(14));
   if( level == 5 )
-    return int(random(16));
-  else
     return int(random(18));
+  else
+    return int(random(20));
 }
 
 //defunct
@@ -320,7 +347,7 @@ void loadImages()
 
 void keyPressed()
 {
-  level++;
+  //gameEnd = true;
 }
 
 void moveAndDrawUnlockTabs()
@@ -671,7 +698,7 @@ void handleGhostWords()
 
 void attemptUpgrade()
 {
-  if( cash/100 > level*2 )
+  if( cash/100 >= level*2 )
   {
     cash -= level*2*100;
     level++;
@@ -695,7 +722,7 @@ int checkPromptness( int index )
     return 1;
   else
   {
-    satisfaction = min( 100, satisfaction+2 );
+    satisfaction = min( 100, satisfaction+1 );
     return 0;
   }
 }
@@ -709,7 +736,7 @@ String promptString( int p )
   else if( p == 1 )
     return "Order served on time";
   else
-    return "Prompt Service!  +2";
+    return "Prompt Service!  +1";
 }
 
 int checkDeviation( int index )
@@ -725,85 +752,103 @@ int checkDeviation( int index )
 
 void mousePressed()
 {
-  int ticket = clickedTicket();
-  if( ticket > -1 && orders[ticket].finished )               //checked ticket
+  if( !gameEnd )
   {
-    if( orders[ticket].checkOrder() )
+    int ticket = clickedTicket();
+    if( ticket > -1 && orders[ticket].finished )               //checked ticket
     {
-      SFX[2].play();
-      int deviation = checkDeviation(ticket);
-      int promptness = checkPromptness(ticket);
-      words.add( new GhostWords( width/5*(ticket+1), height/2, promptString(promptness) + "\nPresentation: %" + (100-deviation), 100 ));
-      cash+=orders[ticket].price;
-      if( deviation > 10 )
-        satisfaction -= deviation-10;
-      orders[ticket] = emptyOrder;
+      if( orders[ticket].checkOrder() )
+      {
+        SFX[2].play();
+        int deviation = checkDeviation(ticket);
+        int promptness = checkPromptness(ticket);
+        words.add( new GhostWords( width/5*(ticket+1), height/2, promptString(promptness) + "\nPresentation: %" + (100-deviation), 100 ));
+        cash+=orders[ticket].price;
+        if( deviation > 10 )
+          satisfaction -= deviation-10;
+        orders[ticket] = emptyOrder;
+      }
+      else
+      {
+        words.add( new GhostWords( width/5*(ticket+1), height/2, "MISTAKE", 100 ) );
+        satisfaction-=5;
+        orders[ticket].plate.remove(orders[ticket].plate.size()-1);
+        orders[ticket].finished = false;
+      }
+    }
+    else if( selectedItem == emptyItem ) //Clicking buttons with empty inventory
+    {
+      for( Button b: buttons )
+        if( b.onButton() && b.unlocked() )
+        {
+          selectedItem = b.getItem();
+          cash -= selectedItem.price;
+          println(selectedItem.price);
+        }
+      if( level < 6 && mouseY < buttonHeight && mouseX > tab[0][level] )
+      {
+        attemptUpgrade();
+      }
+      for( int i = 0; i < grillItems.size(); i++ )
+      {
+        if( mouseY > height/7 && dist( mouseX, mouseY, grillItems.get(i).xPos, grillItems.get(i).yPos ) < itemSize )
+        {
+          selectedItem = grillItems.get(i);
+          grillItems.remove(i);
+          break;
+        }
+      }
+      if( mouseY > height*2.25/7 && mouseX < width*4/5 )
+      {
+        if( mouseY > height*19/20) //dump order
+        { 
+          orders[int(mouseX/( width/5 ))].dumping = true;
+        }
+        else if( orders[int(mouseX/( width/5 ))].plate.size() > 0 ) // if( orders[int(mouseX/( width/5 ))].plate.get(orders[int(mouseX/( width/5 ))].plate.size()-1).touchable() )
+        {
+          selectedItem = orders[int(mouseX/( width/5 ))].plate.remove(orders[int(mouseX/( width/5 ))].plate.size()-1);
+          if( selectedItem.type == Type.TOP_BUN )
+            orders[int(mouseX/( width/5 )) ].finished = false;
+        }
+      }
     }
     else
     {
-      words.add( new GhostWords( width/5*(ticket+1), height/2, "MISTAKE", 100 ) );
-      satisfaction-=5;
-    }
-  }
-  else if( selectedItem == emptyItem ) //Clicking buttons with empty inventory
-  {
-    for( Button b: buttons )
-      if( b.onButton() && b.unlocked() )
+      if( dist(mouseX,mouseY,width*19.5/20,height*9.5/10) < 350 ) //consume held item
       {
-        selectedItem = b.getItem();
-        cash -= selectedItem.price;
-        println(selectedItem.price);
-      }
-    if( level < 6 && mouseY < buttonHeight && mouseX > tab[0][level] )
-    {
-      attemptUpgrade();
-    }
-    for( int i = 0; i < grillItems.size(); i++ )
-    {
-      if( mouseY > height/7 && dist( mouseX, mouseY, grillItems.get(i).xPos, grillItems.get(i).yPos ) < itemSize )
-      {
-        selectedItem = grillItems.get(i);
-        grillItems.remove(i);
-        break;
-      }
-    }
-    if( mouseY > height*2.25/7 && mouseX < width*4/5 && mouseY > height*19/20)
-    { 
-        orders[int(mouseX/( width/5 ))].dumping = true;
-    }
-  }
-  else
-  {
-    if( dist(mouseX,mouseY,width*19.5/20,height*9.5/10) < 350 ) //consume held item
-    {
-      eat( nutrition( selectedItem.type ), selectedItem.type );
-      selectedItem = emptyItem;
-    }
-    else if( mouseY > height*2.25/7 && mouseX < width*4/5) //clicked in order area
-    { 
-      if( mouseY > height*19/20 ) //dumped an order
-      {
-        orders[int(mouseX/( width/5 ))].dumping = true;
-      }
-      else if( !orders[int(mouseX/( width/5 ))].empty && !orders[int(mouseX/( width/5 ))].dumping && !orders[int(mouseX/( width/5 ))].finished ) // <- ADD ITEM
-      {
-        selectedItem.xPos = mouseX;
-        orders[int(mouseX/( width/5 ))].plate.add( selectedItem );
+        eat( nutrition( selectedItem.type ), selectedItem.type );
         selectedItem = emptyItem;
       }
-    }
-    else if( mouseY > height/7 && mouseY < height*2/7 && mouseX < width*4/5 ) //clicked on grill
-    {
-      if( grillSpaceAvailable( mouseX, mouseY ) )
+      else if( mouseY > height*2.25/7 && mouseX < width*4/5) //clicked in order area
+      { 
+        if( mouseY > height*19/20 ) //dumped an order
+        {
+          orders[int(mouseX/( width/5 ))].dumping = true;
+        }
+        else if( !orders[int(mouseX/( width/5 ))].empty && !orders[int(mouseX/( width/5 ))].dumping && !orders[int(mouseX/( width/5 ))].finished ) // <- ADD ITEM
+        {
+          selectedItem.xPos = mouseX;
+          orders[int(mouseX/( width/5 ))].plate.add( selectedItem );
+          selectedItem = emptyItem;
+        }
+      }
+      else if( mouseY > height/7 && mouseY < height*2/7 && mouseX < width*4/5 ) //clicked on grill
       {
-        grillItems.add( new Item( selectedItem, mouseX, mouseY ) );
-        selectedItem = emptyItem;
+        if( grillSpaceAvailable( mouseX, mouseY ) )
+        {
+          grillItems.add( new Item( selectedItem, mouseX, mouseY ) );
+          selectedItem = emptyItem;
+        }
       }
     }
+    
+    if( dist(mouseX,mouseY,width*9.6/10, height*1.37/7) < 100 )
+      lingoScreen = !lingoScreen;
   }
-  
-  if( dist(mouseX,mouseY,width*9.6/10, height*1.37/7) < 100 )
-    lingoScreen = !lingoScreen;
+  else //in game over mode
+  {
+    
+  }
 }
 
 enum Type

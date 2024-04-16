@@ -167,17 +167,39 @@ class Order
         reqs.add( Type.CHEESE );
         reqs.add( Type.BACON );
         break;
+      case 16:
+        name = "Tripple bacon cheeseburger";
+        price = 300;
+        reqs.add( Type.PATTY );
+        reqs.add( Type.PATTY );
+        reqs.add( Type.PATTY );
+        reqs.add( Type.CHEESE );
+        reqs.add( Type.BACON );
+        break;
+      case 17:
+        name = "Tripple 'merica burger";
+        price = 500;
+        reqs.add( Type.PATTY );
+        reqs.add( Type.CHEESE );
+        reqs.add( Type.BACON );
+        reqs.add( Type.PATTY );
+        reqs.add( Type.CHEESE );
+        reqs.add( Type.BACON );
+        reqs.add( Type.PATTY );
+        reqs.add( Type.CHEESE );
+        reqs.add( Type.BACON );
+        break;
         
       //Level 6 (egg, avocado)
       
-      case 16:
+      case 18:
         name = "Big breakfast";
         price = 200;
         reqs.add( Type.EGG );
         reqs.add( Type.BACON );
         reqs.add( Type.CHEESE );
         break;
-      case 17:
+      case 19:
         name = "Green machine";
         price = 300;
         reqs.add( Type.LETTUCE );
@@ -397,8 +419,8 @@ class Order
       {
         if( plate.get(i).yPos < burgerBottom - i*40 )
           plate.get(i).yPos+=16;
-        if( plate.get(i).type == Type.TOP_BUN && plate.get(i).yPos < burgerBottom - i*40 )
-          plate.get(i).yPos+=32;
+        if( plate.get(i).type == Type.TOP_BUN && plate.size() > 1 && plate.get(i).yPos < burgerBottom - i*40 )
+          plate.get(i).yPos = min(plate.get(i).yPos+32,plate.get(i-1).yPos);
         else if( plate.get(i).yPos > burgerBottom - i*40 )
           plate.get(i).yPos--;
       }
@@ -425,26 +447,19 @@ class Order
   }
   
   boolean checkOrder()
-  {
-    boolean checklist[] = new boolean[ reqs.size() ];
+  { 
+    //for( Type t: reqs )
+    //  println(t);
+    //for( Item i: plate )
+    //  println(i.type);
+    ArrayList<Type> tempReq = new ArrayList<Type>();
+    tempReq.addAll(reqs);
     
-    for( Type t: reqs )
-      println(t);
-    for( Item i: plate )
-      println(i.type);
-    
-    for( int i = 0; i < reqs.size(); i++ )
-    {
-      for( int j = 0; j < plate.size(); j++ )
-      {
-        if( plate.get(j).type == reqs.get(i) )
-          checklist[i] = true;
-      }
-    }
-    
-    for( boolean b: checklist )
-      if( b == false )
-        return false;
+    for( Item t: plate )
+      tempReq.remove(t.type);
+
+    if( tempReq.size() > 0 )
+      return false;
         
     return true;
   }
