@@ -11,7 +11,7 @@ ArrayList<Item> grillItems = new ArrayList<Item>();
 Order emptyOrder = new Order(-1,-1);
 Order orders[] = {emptyOrder,emptyOrder,emptyOrder,emptyOrder};
 
-boolean unlocks[] = {true,true,true,true,false,false,false,false,false,false,false,false,false,false,false};
+//boolean unlocks[] = {true,true,true,true,false,false,false,false,false,false,false,false,false,false,false};
 
 Button buttons[] = new Button[15];
 int buttonSpace, buttonHeight;
@@ -46,7 +46,14 @@ boolean lingoScreen = false;
 
 boolean gameEnd = false;
 boolean wonGame = false;
+boolean shutterClosed = false;
+boolean typingHighScore = false;
 float shutterY = 0;
+Score [] highScores = new Score[50];
+char qwerty [] = {'Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M','_'};
+int typeTimer = 0;
+boolean showingScores = false;
+String name = "";
 
 //SOUND
 SoundFile SFX[] = new SoundFile[9];
@@ -64,6 +71,9 @@ void setup()
   setupTabs();
   loadSounds();
   shuffleOrderDelays();
+  loadGame();
+  sortScores();
+  saveGame();
  
   //futureOrders.add( new Order( 90, orderByLevel() ) );
 }
@@ -71,6 +81,7 @@ void setup()
 void draw()
 {
   background(150);
+  textAlign(CENTER);
   drawTestScreen();
   for(Button b: buttons)
     b.drawButton();
@@ -123,14 +134,22 @@ void draw()
   
   //Game Over Items
   if( satisfaction <= 0 )
+  {
     gameEnd = true;
+    typeTimer = 3000;
+  }
   if( time > 1440 )
   {
     gameEnd = true;
+    typeTimer = 3000;
     wonGame = true;
   }
   if( gameEnd || shutterY > 0 )
+  {
     drawShutter();
+    if(shutterClosed)
+      handleHighScore();
+  }
 }
 
 void setVariables()
@@ -152,6 +171,21 @@ void drawShutter()
   strokeWeight(4);
   stroke(255);
   rect(0,-50, width, shutterY, 50);
+  strokeWeight(1);
+  stroke(100);
+  //for(int i = int(shutterY-50); i > 0; i+=100) //what is wrong with this section?
+  //  line(5,i,width-5,i);
+  
+  if( !shutterClosed && !typingHighScore && !showingScores && shutterY >= height+50 )
+  {
+    shutterClosed = true;
+    typingHighScore = true;
+  }
+  //else if( shutterY < height+50 )
+  //{
+  //  showingScores = false;
+  //  typingHighScore = false;
+  //}
 }
   
 boolean checkForLatePenalties( Order o )
@@ -203,9 +237,9 @@ void checkForRush()
     futureOrders.add( new Order( 30, orderByLevel() ) );
     words.add( new GhostWords( "Bus on the lot!", 100 ) );
   }
-  else if ( time != 480 && time %45 == 0 )
+  else if ( time != 480 && time %60 == 0 )
   {
-    futureOrders.add( new Order( 60, orderByLevel() ) );
+    futureOrders.add( new Order( 120, orderByLevel() ) );
   }
 }
 
@@ -347,7 +381,7 @@ void loadImages()
 
 void keyPressed()
 {
-  //gameEnd = true;
+  satisfaction -= 5;
 }
 
 void moveAndDrawUnlockTabs()
@@ -847,8 +881,236 @@ void mousePressed()
   }
   else //in game over mode
   {
-    
+    if( showingScores && mouseX > width-150 && mouseY > height-150 )
+      reset();
+  
+    if(typingHighScore)
+    {
+      char letter = checkForLetter();
+      if( letter == ' ' )
+        return;
+      else if( letter == '-' && name.length() > 0 )
+        name = name.substring(0,name.length()-1);
+      else if( letter == '=' && name.length() > 0 )
+      {
+        typingHighScore = false; //<>//
+        showingScores = true;
+        highScores[highScores.length-1] = new Score( name, int(cash), int(random(20)) );
+        sortScores();
+        saveGame();
+      }
+      else if( letter == '_' )
+        name += ' ';
+      else
+        name += letter;
+    }
   }
+}
+
+void reset()
+{
+  shuffleOrderDelays();
+  selectedItem = emptyItem;
+  grillItems.clear();
+  futureOrders.clear();
+  orders[0]=orders[1]=orders[2]=orders[3]=emptyOrder;
+  hunger = 100;
+  time = 479; //seconds
+  cash = 100; //in cents
+  satisfaction = 100; //customer satisfaction
+
+  nextSecond = 0;
+  nextOrderTimer = 0;
+  nextOrderIndex = 0;
+  lingoScreen = false;
+  gameEnd = false;
+  wonGame = false;
+  typingHighScore = false;
+  showingScores = false;
+  shutterClosed = false;
+  name = "";
+  
+  level = 0;
+  setupTabs();
+}
+
+//***********************HIGH SCORE STUFF****************************//
+void displayScores()
+{
+  fill(0,0,0);
+  textSize(height/20);
+  tint(255);
+  //for( int i = 0; i < highScores.length; i++ )
+  for( int i = 0; i < 10; i++ )
+  {
+    textAlign(RIGHT);
+    text(highScores[i].name+"   ",width/2,height/11.0*(i+1));
+    textAlign(LEFT);
+    text("   "+highScores[i].cash,width/2,height/11.0*(i+1));
+    //image( itemImages[ highScores[i].food ], width/2, height/11.0*(i+1)-20 );
+  }
+  push();
+  noFill();
+  stroke(0,0,0);
+  strokeWeight(5);
+  textSize(30);
+  textAlign(CENTER);
+  rect(width-75,height-75,150,150);
+  text("NEW\nGAME",width-75,height-85);
+  pop();
+}
+
+char checkForLetter()
+{
+  for( int i = 0; i < 10; i++ )
+    if( dist( mouseX, mouseY, 510+i*100, 760 ) < 50 )
+      return qwerty[i];
+  for( int i = 0; i < 9; i++ )
+    if( dist( mouseX, mouseY, 560+i*100, 860 ) < 50 )
+      return qwerty[i+10];
+  for( int i = 0; i < 8; i++ )
+    if( dist( mouseX, mouseY, 610+i*100, 960 ) < 50 )
+      return qwerty[i+19];
+      
+  if( dist(mouseX,mouseY, width/6,height*4/5) < 75 )
+    return '-';   
+  if( dist(mouseX,mouseY, width*5/6,height*4/5) < 75 )
+    return '=';
+      
+  return ' ';
+}
+
+void sortScores()
+{
+  int highestScore;
+  int highestIndex;
+  Score tempScores[] = new Score[highScores.length];
+  for(int i = 0; i < highScores.length; i++)
+  {
+    highestScore = 0;
+    highestIndex = 0;
+    for( int j = 0; j < highScores.length; j++)
+    {
+      if( highScores[j].cash > highestScore )
+      {
+        highestScore = highScores[j].cash;
+        highestIndex = j;
+      }
+    }
+    tempScores[i] = highScores[highestIndex];
+    highScores[highestIndex] = new Score();
+  }
+  
+  highScores = tempScores;
+}
+
+void handleHighScore()
+{
+  rectMode(CENTER);
+  if( !showingScores && millis() > typeTimer )
+  {
+    if( cash > highScores[highScores.length-1].cash )
+      typingHighScore = true;
+    else
+      showingScores = true;
+  }
+  if( shutterClosed && typingHighScore)
+  {
+    drawQwerty();
+    drawScore();
+  }
+  else if(showingScores)
+    displayScores();
+
+  rectMode(CORNER);
+}
+
+void drawScore()
+{
+  push();
+  textSize(50);
+  fill(255);
+  text("Score: " + int(cash),width/2,height/2);
+  pop();
+}
+
+void drawQwerty()
+{
+  fill(0);
+  textSize(60);
+  text(name+"_",width/2,height/3);
+  textSize(30);
+  for(int i = 0; i < 27; i++)
+  {
+    noFill();
+    stroke(0,0,0);
+    if( i < 10 )
+    {
+      rect( width/2+50-(5*100)+(100*i), (height*2/3)+40, 90, 90);
+      fill(0,0,0);
+      text( qwerty[i], width/2+50-(5*100)+(100*i), (height*2/3)+50 );
+    }
+    else if( i < 19 )
+    {
+      rect( width/2+50-(4.5*100)+(100*(i-10)), (height*2/3)+140, 90, 90);
+      fill(0,0,0);
+      text( qwerty[i], width/2+50-(4.5*100)+(100*(i-10)), (height*2/3)+150 );
+    }
+    else
+    {
+      rect( width/2+50-(4*100)+(100*(i-19)), (height*2/3)+240, 90, 90);
+      fill(0,0,0);
+      text( qwerty[i], width/2+50-(4*100)+(100*(i-19)), (height*2/3)+250 );
+    }
+  }
+  noFill();
+  rect(width/6,height*4/5,200,100);
+  text("DELETE",width/6,height*4/5+10);
+  rect(width*5/6,height*4/5,200,100);
+  text("ENTER",width*5/6,height*4/5+10);
+}
+
+
+//***********************FILE I/O****************************//
+void saveGame()
+{
+  try
+  {
+    PrintWriter pw = createWriter( "highScores.txt" );
+    for(int i = 0; i < highScores.length; i++)
+    {
+      pw.println( highScores[i].name );
+      pw.println( highScores[i].cash );
+      pw.println( highScores[i].food );
+    }
+    
+    pw.flush(); //Writes the remaining data to the file
+    pw.close(); //Finishes the file
+  }
+  catch(Exception e)
+  {
+    println("SOMETHING WENT WRONG");
+  }
+}
+
+void loadGame()
+{
+  int i = 0;
+  String [] data;
+  try
+  {
+    data = loadStrings("highScores.txt");
+    for(; i < data.length; i+=3)
+    {
+      highScores[i/3] = new Score( data[i], Integer.parseInt(data[i+1]), Integer.parseInt(data[i+2]) );
+    }
+  }
+  catch(Exception e)
+  {
+    println("SOMETHING WENT WRONG");
+  }
+  for(; i < highScores.length; i++)
+    highScores[i] = new Score();
 }
 
 enum Type
