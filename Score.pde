@@ -1,20 +1,17 @@
 class Score
 {
   String name;
-  int cash;
-  int food;
+  int points;
   
   public Score()
   {
     name = "---";
-    cash = 0;
-    food = 0;
+    points = 0;
   }
   
-  public Score( String n, int s, int p )
+  public Score( String n, int s )
   {
     name = n;
-    cash = s;
-    food = p;
+    points = s;
   }
 }

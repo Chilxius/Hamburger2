@@ -1,3 +1,5 @@
+//Individual ingredients
+
 class Item
 {
   float xPos, yPos;
@@ -30,6 +32,11 @@ class Item
     {
       switch(type)
       {
+      case TOP_BUN:
+      case BOTTOM_BUN:
+        type = Type.TOAST;
+        freshness = 5;
+        break;
       case PATTY:
         type = Type.RARE;
         freshness = 5;
@@ -91,6 +98,8 @@ class Item
       return itemImages[17];
     case RUINED:
       return itemImages[18];
+    case TOAST:
+      return itemImages[20];
 
     default:
       return itemImages[19];
@@ -140,6 +149,8 @@ class Item
       return platedImages[17];
     case RUINED:
       return platedImages[18];
+    case TOAST:
+      return platedImages[20];
 
     default:
       return platedImages[19];
@@ -183,6 +194,8 @@ class Item
 
     case 18:
       return Type.RUINED;
+    case 20:
+      return Type.TOAST;
     default:
       return Type.NONE;
     }
@@ -194,12 +207,13 @@ class Item
     {
     case TOP_BUN:
     case BOTTOM_BUN:
-      return 2;
     case PATTY:
     case RARE:
     case MEDIUM:
-    case WELL_DONE:
       return 5;
+    case WELL_DONE:
+    case TOAST:
+      return 6;
     case KATCHUP:
     case MUSTARD:
     case MAYO:
@@ -226,6 +240,7 @@ class Item
     switch(type)
     {
     case TOP_BUN:
+    case TOAST:
       return 10;
     case BOTTOM_BUN:
       return 5;
@@ -273,6 +288,8 @@ class Item
       return "Top Bun";
     case BOTTOM_BUN:
       return "Bottom Bun";
+    case TOAST:
+      return "Toast";
     case PATTY:
       return "Beef Patty";
     case KATCHUP:
@@ -320,6 +337,8 @@ class Item
     case TOP_BUN:
       return true;
     case BOTTOM_BUN:
+      return true;
+    case TOAST:
       return true;
     case PATTY:
       return true;

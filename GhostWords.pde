@@ -1,3 +1,5 @@
+//Words that appear for a moment before vanishing
+
 class GhostWords
 {
   float xPos, yPos;

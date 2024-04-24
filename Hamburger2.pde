@@ -1,53 +1,72 @@
+/***********************************************
+*                                              *
+*       Hamburger Game II: Lunch Rush!         *
+*                                              *
+*  Prepare the orders as requested and hit the *
+* ticket to serve it. Items can be stacked in  *
+* your hand, first-in-last-out. Use the lingo  *
+* book to translate the diner terms.           *
+*                                              *
+***********************************************/
+
 import processing.sound.*;
 
-//16 hours, 30 orders, extras added at 9am, 1pm, 5pm, and 9pm
+//Easy mode
+boolean noFail = false;
+
+//16 hours, 30 orders, extras added at 9am, 1pm, 5pm, and 9pm, one extra added every 100 seconds
 int orderDelays[] = {0,0,0,0,5,5,5,10,10,15,15,20,20,25,25,30,30,35,35,40,40,45,55,50,50,50,55,55,60,60};
 ArrayList<Order> futureOrders = new ArrayList<Order>();
 
+//Lists for items on grill or in hand
 Item emptyItem = new Item(-1);
-Item selectedItem = emptyItem;
+ArrayList<Item> hand = new ArrayList<Item>();
 ArrayList<Item> grillItems = new ArrayList<Item>();
 
+//The four orders on screen (emptyOrder can't be interacted with)
 Order emptyOrder = new Order(-1,-1);
 Order orders[] = {emptyOrder,emptyOrder,emptyOrder,emptyOrder};
 
-//boolean unlocks[] = {true,true,true,true,false,false,false,false,false,false,false,false,false,false,false};
-
+//The 15 ingredient buttons
 Button buttons[] = new Button[15];
 int buttonSpace, buttonHeight;
 
-PImage testImage;
+//Images
 PImage forkKnife;
 PImage book;
-PImage itemImages[] = new PImage[20]; //inludes rare, medium, well-done, ruined
-PImage platedImages[] = new PImage[20]; //for when it's on the burger
-float grillRed;
-boolean redUp;
+PImage itemImages[] = new PImage[21];
+PImage platedImages[] = new PImage[21]; //for when it's on the burger
+PImage tubeImage[] = new PImage[2]; //for the stack tube
 
 //HUD Data
 float hunger = 100;
 int time = 479; //seconds
 int cash = 100; //in cents
 int satisfaction = 100; //customer satisfaction
+float grillRed; //for the grill's
+boolean redUp;  //red flashes
+boolean lingoScreen = false; //lingo book open
 
+//Timer data
 int nextSecond = 0;
 int nextOrderTimer = 0;
 int nextOrderIndex = 0;
 
-int burgerBottom;
-int itemSize;
+//Ghost word data
+ArrayList<GhostWords> words = new ArrayList<GhostWords>();
 
 //Main items, fixings, sauces, exotic veggies, mush and bacon, egg and avocado
 int level = 0; //level of unlocks, should start at 0, goes to 1 when game begins
-float tab[][] = new float[6][6];
-String tabText[] = new String[6];
+float tab[][] = new float[6][6]; //data for upgrade tabs
+String tabText[] = new String[6]; //words on the tabs
 
-boolean lingoScreen = false;
-
+//Input mode booleans
 boolean gameEnd = false;
 boolean wonGame = false;
 boolean shutterClosed = false;
 boolean typingHighScore = false;
+
+//End of game data
 float shutterY = 0;
 Score [] highScores = new Score[50];
 char qwerty [] = {'Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M','_'};
@@ -56,91 +75,64 @@ boolean showingScores = false;
 String name = "";
 
 //SOUND
-SoundFile SFX[] = new SoundFile[9];
+SoundFile SFX[] = new SoundFile[3];
+
+//Variables to reduce computation
+float stackX, stackY, stackYAdd, stackPicSize;
+int burgerBottom, itemSize;
 
 void setup()
 {
   fullScreen();
-  setVariables();
   imageMode(CENTER);
   textAlign(CENTER);
+  
+  //Set up empty slots
   emptyOrder.empty = true;
-  //TEST
+  hand.add( emptyItem );
+  
+  //Program setup
+  setVariables();
   loadImages();
   setupButtons();
   setupTabs();
   loadSounds();
   shuffleOrderDelays();
+  
+  //Scores
   loadGame();
   sortScores();
   saveGame();
- 
-  //futureOrders.add( new Order( 90, orderByLevel() ) );
 }
 
 void draw()
 {
   background(150);
-  textAlign(CENTER);
-  drawTestScreen();
-  for(Button b: buttons)
-    b.drawButton();
-  if( tab[1][5] > -buttonHeight*2 )
-    moveAndDrawUnlockTabs();
-  
-  if( level > 0 && !gameEnd && secondPassed() ) //checks every second
-  {
-    time++;
-    hunger--;
-    nextOrderTimer--;
-    if( hunger < 0 )
-      hunger = 0;
-    checkForRush();
-    for( Order o: orders )
-    {
-      o.lateTime--;
-      //if( o.lateTime < 0 )
-      //  o.lateTime = 0;
-    }
-    
-    for(int i = 0; i < orders.length; i++)
-      if( orders[i].price > 0 && checkForLatePenalties(orders[i]) )
-        orders[i] = emptyOrder;
-        
-    if( nextOrderTimer <=0 )
-    {
-      futureOrders.add( new Order( int(random(120,60)), orderByLevel() ) );
-      nextOrderIndex++;
-      if( nextOrderIndex < orderDelays.length )
-        nextOrderTimer = orderDelays[nextOrderIndex];
-    }
-    for( Item i: grillItems )
-      i.reduceFreshness(1);
-  }
-  
+  drawMainScreen();
+  passTime();
   addNewOrders();
-  
   drawGrillItems();
-  
   for(Order o: orders)
     o.handleOrder();
-    
   drawInfoHud();
-  
-  if(lingoScreen)
-    drawLingoScreen();
-    
+  drawLingoScreen();   
   handleGhostWords();
-  
+  handleGameOver();
+}
+
+void handleGameOver()
+{
   //Game Over Items
   if( satisfaction <= 0 )
   {
     gameEnd = true;
+    println(calculateScore());
     typeTimer = 3000;
   }
   if( time > 1440 )
   {
     gameEnd = true;
+    println(calculateScore());
     typeTimer = 3000;
     wonGame = true;
   }
@@ -152,12 +144,46 @@ void draw()
   }
 }
 
+void passTime()
+{
+  if( level > 0 && !gameEnd && secondPassed() ) //checks every second
+  {
+    time++;
+    hunger--;
+    nextOrderTimer--;
+    if( hunger < 0 )
+      hunger = 0;
+    checkForRush();
+    if( !noFail )
+      for( Order o: orders )
+        o.lateTime--;
+    
+    for(int i = 0; i < orders.length; i++)
+      if( orders[i].price > 0 && checkForLatePenalties(orders[i]) )
+        orders[i] = emptyOrder;
+        
+    if( nextOrderTimer <=0 )
+    {
+      futureOrders.add( new Order( int(random(100,40)), orderByLevel() ) );
+      nextOrderIndex++;
+      if( nextOrderIndex < orderDelays.length )
+        nextOrderTimer = orderDelays[nextOrderIndex];
+    }
+    for( Item i: grillItems )
+      i.reduceFreshness(1);
+  }
+}
+
 void setVariables()
 {
   burgerBottom = int(height*16/18);
   itemSize = int(height/4.5);
   buttonSpace = int(width/15);
   buttonHeight = int(height/7);
+  stackX = width*8.2/10;
+  stackY = height*7/10;
+  stackYAdd = height/20;
+  stackPicSize = 45;
 }
 
 void drawShutter()
@@ -172,20 +198,14 @@ void drawShutter()
   stroke(255);
   rect(0,-50, width, shutterY, 50);
   strokeWeight(1);
-  stroke(100);
-  //for(int i = int(shutterY-50); i > 0; i+=100) //what is wrong with this section?
-  //  line(5,i,width-5,i);
-  
-  if( !shutterClosed && !typingHighScore && !showingScores && shutterY >= height+50 )
+  fill(100);
+  for(int i = int(shutterY-50); i > 0; i-=100) //draw slat lines
+    rect(0,i,width,5);
+  if( !shutterClosed && !typingHighScore && !showingScores && shutterY >= height+50 ) //this is a gross mess and I know it
   {
     shutterClosed = true;
     typingHighScore = true;
   }
-  //else if( shutterY < height+50 )
-  //{
-  //  showingScores = false;
-  //  typingHighScore = false;
-  //}
 }
   
 boolean checkForLatePenalties( Order o )
@@ -225,7 +245,7 @@ void checkForRush()
     futureOrders.add( new Order( 90, orderByLevel() ) );
     futureOrders.add( new Order( 100, orderByLevel() ) );
     futureOrders.add( new Order( 110, orderByLevel() ) );
-    words.add( new GhostWords( "Supper Crowd!", 100 ) );
+    words.add( new GhostWords( "Dinner Crowd!", 100 ) );
   }
   else if( time == 1260 ) //bus at 9
   {
@@ -237,9 +257,9 @@ void checkForRush()
     futureOrders.add( new Order( 30, orderByLevel() ) );
     words.add( new GhostWords( "Bus on the lot!", 100 ) );
   }
-  else if ( time != 480 && time %60 == 0 )
+  else if ( time != 480 && time %100 == 0 )
   {
-    futureOrders.add( new Order( 120, orderByLevel() ) );
+    futureOrders.add( new Order( 60, orderByLevel() ) );
   }
 }
 
@@ -294,27 +314,18 @@ void addNewOrders()
 int orderByLevel()
 {
   if( level == 1 )
-    return int(random(3));
+    return int(random(5));
   if( level == 2 )
-    return int(random(10));
+    return int(random(15));
   if( level == 3 )
-    return int(random(14));
+    return int(random(5,19));
   if( level == 4 )
-    return int(random(14));
+    return int(random(5,19));
   if( level == 5 )
-    return int(random(18));
+    return int(random(10,26));
   else
-    return int(random(20));
+    return int(random(10,30));
 }
-
-//defunct
-//void drawHungerIssue()
-//{
-//  float multiplier = 100 - hunger;
-//  fill(0,-255+(500*(multiplier/100.0)));
-//  rect(0,0,width,height);
-//  //println(500*(multiplier/100.0));
-//}
 
 void loadSounds()
 {
@@ -353,6 +364,7 @@ void loadImages()
   itemImages[17] = loadImage("well.png");    itemImages[17].resize(itemSize,0);
   itemImages[18] = loadImage("ruined.png");  itemImages[18].resize(itemSize,0);
   itemImages[19] = loadImage("spatula.png"); itemImages[19].resize(itemSize,0);
+  itemImages[20] = loadImage("toast.png");   itemImages[20].resize(itemSize,0);
   
   platedImages[0] = itemImages[0];
   platedImages[1] = itemImages[1];
@@ -374,14 +386,19 @@ void loadImages()
   platedImages[16] = itemImages[16];
   platedImages[17] = itemImages[17];
   platedImages[18] = itemImages[18];
+  platedImages[20] = itemImages[20];
+  
+  tubeImage[0] = loadImage("tubeT.png");  tubeImage[0].resize(75,0);
+  tubeImage[1] = loadImage("tubeB.png");  tubeImage[1].resize(75,0);
 
   forkKnife = loadImage("forkKnife.png"); forkKnife.resize(100,0);
   book = loadImage("lingo.png");          book.resize(100,0);
 }
 
-void keyPressed()
+void keyPressed() //for debugging
 {
-  satisfaction -= 5;
+  //satisfaction -= 5;
+  //time = 1439;
 }
 
 void moveAndDrawUnlockTabs()
@@ -525,14 +542,66 @@ String satisfactionString()
 
 void drawLingoScreen()
 {
+  if(!lingoScreen) return;
+  
   strokeWeight(9);
   stroke(200,230);
   fill(100,230);
   rect(width/20,height/18,width*18/20,height*16/18);
   image( book, width*9.6/10, height*1.37/7 );
+  fill(0);
+  textSize(37);
+  textAlign(LEFT);
+  String lingoText = "";
+  lingoText += "Alligator Pear - - Avocado\n";
+  lingoText += "Bad Breath - - Onions\n";
+  lingoText += "Belt - - BLT\n";
+  lingoText += "Big Breakfast - - Bacon, Egg, Cheese, Toast\n";
+  lingoText += "Big Red - - Katchup and Tomato\n";
+  lingoText += "BLT - - Bacon, Lettuce, Tomato\n";
+  lingoText += "Burn it - - Well Done\n";
+  lingoText += "Cackleberries - - Eggs\n";
+  lingoText += "Cowcumber - - Pickles\n";
+  lingoText += "Deluxe - - Lettuce and Tomato\n";
+  lingoText += "Double - - Two Patties\n";
+  lingoText += "Drag it through Wisconson - - Cheese\n";
+  lingoText += "Eggwich - - Eggs on toast\n";
+  lingoText += "Fungal Infection - - Mushrooms\n";
+  lingoText += "Garden Burger - - Lettuce and Tomato\n";
+  lingoText += "Goat - - Everything on it\n";
+  lingoText += "Green Machine - - Lettuce, Pickle, Avocado\n";
+  lingoText += "Green - - Lettuce\n";
+  lingoText += "Hemorrage - - Katchup\n";
+  lingoText += "Hockey Puck - - Well Done\n";
+  lingoText += "Jack Benny - - Grilled Cheese with Bacon\n";
+  text(lingoText,width/16,height/10);
+  
+  lingoText  = "Jack Tommy - - Grilled Cheese with Tomato\n";
+  lingoText += "Love Apple - - Tomato\n";
+  lingoText += "Make it Cry - - Onions\n";
+  lingoText += "Make it Oink - - Bacon\n";
+  lingoText += "Mississippi Mud - - Mustard\n";
+  lingoText += "Mouse Trap - - Grilled Cheese\n";
+  lingoText += "On the Hoof - - Rare\n";
+  lingoText += "On a Raft - - On Toast\n";
+  lingoText += "Paint it - - Add sauce\n";
+  lingoText += "Peel it off the Wall - - Lettuce\n";
+  lingoText += "Pigs - - Bacon\n";
+  lingoText += "Rabbit Food - - Lettuce\n";
+  lingoText += "Sauce Rainbow - - All three sauces\n";
+  lingoText += "Single - - One Patty\n";
+  lingoText += "Soggy - - All three sauces\n";
+  lingoText += "Still Mooing - - Rare\n";
+  lingoText += "Super Cheese - - Two Cheese\n";
+  lingoText += "The Works - - Everything on it\n";
+  lingoText += "Tripple - - Three Patties\n";
+  lingoText += "Tripple 'merica - - Three Patties, Three Cheese, Three Bacon\n";
+  lingoText += "Wax - - Cheese\n";
+  text(lingoText,width*.45,height/10);
+  textAlign(CENTER);
 }
 
-void drawTestScreen()
+void drawMainScreen()
 {
   fill(150);
   strokeWeight(4);
@@ -541,18 +610,20 @@ void drawTestScreen()
   //rect(0,height/7,width*4/5,height*1.5/7);
   rect(0,height*2.25/7,width*4/5,height*4.75/7);
   fill(200);
-  circle(width*9/10,height*8/10,height/3.5);
   circle(width*19.5/20,height*9.5/10,100);
   for( int i = 0; i < 17; i++ )
     circle( width/15*i+width/32, height/14, 100 );
   drawPlates();
   drawGrill();
-  drawCurrentItem();
+  drawCurrentItem();  
+  for(Button b: buttons)
+    b.drawButton();
+  if( tab[1][5] > -buttonHeight*2 )
+    moveAndDrawUnlockTabs();
 }
 
 void drawPlates()
-{
-  
+{ 
   for(int i = 0; i < 4; i++)
   {
     //Pannels
@@ -635,7 +706,7 @@ void drawGrill()
     grillRed+=0.5;
   else
     grillRed-=0.5;
-  if( grillRed > 70 )
+  if( grillRed > 100 )
     redUp = false;
   if( grillRed < 0 )
     redUp = true;
@@ -643,11 +714,26 @@ void drawGrill()
 
 void drawCurrentItem()
 {
-  if( selectedItem != null )
-    image( selectedItem.itemPic(), width*9/10,height*8/10, height/3.5, height/3.5);
   textSize(50);
   fill(0);
-  text(selectedItem.toString(), width*9/10, height*6.5/10);
+  if( hand.size() > 0 )
+    text(hand.get(0).toString(), width*18/20, height*6.5/10);
+  
+  //Stacked Items
+  image( tubeImage[0], stackX, height-32 );
+  strokeWeight(4);
+  stroke(255);
+  fill(200);
+  for( int i = 1; i < hand.size()-1; i++ )
+  {
+    circle( width*8.2/10, height*7/10+(height/20*i), 50 );
+    image( hand.get(i).itemPic(), stackX, stackY+stackYAdd*i, stackPicSize, stackPicSize );
+  }
+  image( tubeImage[1], stackX, height-32 );
+  circle(width*18.25/20,height*8/10,height/3.5);
+  //if( selectedItem != null )
+  if( hand.size() > 0 && hand.get(0) != null )
+    image( hand.get(0).itemPic() /*selectedItem.itemPic()*/, width*18.25/20,height*8/10, height/3.5, height/3.5);
 }
 
 void eat( int amount, Type t )
@@ -665,25 +751,26 @@ int nutrition( Type t )
 {
   switch( t )
   {
-    case TOP_BUN:     return 20;
-    case BOTTOM_BUN:  return 20;
-    case PATTY:    return -10;
-    case KATCHUP:  return 5;
-    case LETTUCE:  return 20;
-    case TOMATO:   return 20;
-    case CHEESE:   return 40;
-    case MUSTARD:  return 5;
-    case MAYO:     return 10;
-    case PICKLE:   return 25;
-    case ONION:    return 15;
-    case BACON:    return 40;
-    case SHROOM:   return 25;
-    case EGG:      return 20;
-    case AVOCADO:  return 30;
+    case TOP_BUN:
+    case BOTTOM_BUN:return 20;
+    case TOAST:     return 25;
+    case PATTY:     return -10;
+    case KATCHUP:   return 5;
+    case LETTUCE:
+    case TOMATO:    return 20;
+    case CHEESE:    return 40;
+    case MUSTARD:   return 5;
+    case MAYO:      return 10;
+    case PICKLE:    return 25;
+    case ONION:     return 15;
+    case BACON:     return 40;
+    case SHROOM:    return 25;
+    case EGG:       return 20;
+    case AVOCADO:   return 30;
   
-    case RARE:       return 65;
-    case MEDIUM:     return 75;
-    case WELL_DONE:  return 65;
+    case RARE:      return 65;
+    case MEDIUM:    return 75;
+    case WELL_DONE: return 65;
   
     case RUINED:     return -20;
   
@@ -705,8 +792,6 @@ boolean grillSpaceAvailable( float x, float y )
   return true;
 }
 
-// rect((i+1)*width/5-125,height*2.25/7,150,240);
-
 int clickedTicket()
 {
   for(int i = 0; i < 4; i++)
@@ -717,8 +802,6 @@ int clickedTicket()
   return -1;
 }
 
-//quick and dirty - change
-ArrayList<GhostWords> words = new ArrayList<GhostWords>();
 void handleGhostWords()
 {
   for(int i = 0; i < words.size(); i++)
@@ -780,12 +863,11 @@ int checkDeviation( int index )
   {
     result += dist( i.xPos, 0, index*(width/5)+(width/10), 0 );
   }
-  println("RESULT: " + result);
   return result/15;
 }
 
-void mousePressed()
-{
+void mousePressed() //recently changed this to allow stacking held items
+{                    //some messy bits still remain
   if( !gameEnd )
   {
     int ticket = clickedTicket();
@@ -800,6 +882,12 @@ void mousePressed()
         cash+=orders[ticket].price;
         if( deviation > 10 )
           satisfaction -= deviation-10;
+        for( Item i: orders[ticket].plate )
+          if( i.type == Type.RUINED )
+          {
+            satisfaction -= 5;
+            words.add( new GhostWords( width/5*(ticket+1), height/(random(2)), "Ruined Food   -5", 75 ) );
+          }
         orders[ticket] = emptyOrder;
       }
       else
@@ -810,48 +898,52 @@ void mousePressed()
         orders[ticket].finished = false;
       }
     }
-    else if( selectedItem == emptyItem ) //Clicking buttons with empty inventory
+    else// if( /*selectedItem*/ hand.get(0) == emptyItem ) //Clicking buttons with empty inventory
     {
       for( Button b: buttons )
-        if( b.onButton() && b.unlocked() )
+        if( b.onButton() && b.unlocked() )  //GET NEW ITEM
         {
-          selectedItem = b.getItem();
-          cash -= selectedItem.price;
-          println(selectedItem.price);
+          hand.add( 0, b.getItem() );
+          cash -= hand.get(0)/*selectedItem*/.price;
         }
-      if( level < 6 && mouseY < buttonHeight && mouseX > tab[0][level] )
+      if( level < 6 && mouseY < buttonHeight && mouseX > tab[0][level] ) //UPGRADE
       {
         attemptUpgrade();
       }
-      for( int i = 0; i < grillItems.size(); i++ )
+      for( int i = 0; i < grillItems.size(); i++ ) //GRAB ITEM OFF GRILL
       {
         if( mouseY > height/7 && dist( mouseX, mouseY, grillItems.get(i).xPos, grillItems.get(i).yPos ) < itemSize )
         {
-          selectedItem = grillItems.get(i);
+          hand.add( 0,  grillItems.get(i) );
           grillItems.remove(i);
-          break;
+          return; // <- stop-gap
         }
       }
-      if( mouseY > height*2.25/7 && mouseX < width*4/5 )
+      if( mouseY > height*2.25/7 && mouseX < width*4/5 )  //DUMP OR TAKE FROM TOP
       {
         if( mouseY > height*19/20) //dump order
         { 
           orders[int(mouseX/( width/5 ))].dumping = true;
         }
-        else if( orders[int(mouseX/( width/5 ))].plate.size() > 0 ) // if( orders[int(mouseX/( width/5 ))].plate.get(orders[int(mouseX/( width/5 ))].plate.size()-1).touchable() )
+        else if( hand.size() == 1 && orders[int(mouseX/( width/5 ))].plate.size() > 0 ) // if( orders[int(mouseX/( width/5 ))].plate.get(orders[int(mouseX/( width/5 ))].plate.size()-1).touchable() )
         {
-          selectedItem = orders[int(mouseX/( width/5 ))].plate.remove(orders[int(mouseX/( width/5 ))].plate.size()-1);
-          if( selectedItem.type == Type.TOP_BUN )
+          hand.add( 0, orders[int(mouseX/( width/5 ))].plate.remove(orders[int(mouseX/( width/5 ))].plate.size()-1) );
+          if( hand.get(0).type == Type.TOP_BUN || hand.get(0).type == Type.TOAST )
             orders[int(mouseX/( width/5 )) ].finished = false;
+          return; // <- stop-gap
+        }
+        else if( orders[int(mouseX/( width/5 ))].finished  ) //removing top bun of finished item
+        {
+          hand.add( 0, orders[int(mouseX/( width/5 ))].plate.remove(orders[int(mouseX/( width/5 ))].plate.size()-1) );
+          orders[int(mouseX/( width/5 )) ].finished = false;
+          return;
         }
       }
-    }
-    else
-    {
-      if( dist(mouseX,mouseY,width*19.5/20,height*9.5/10) < 350 ) //consume held item
+      if( hand.size() > 1 && dist(mouseX,mouseY,width*19.5/20,height*9.5/10) < 350 ) //consume held item
       {
-        eat( nutrition( selectedItem.type ), selectedItem.type );
-        selectedItem = emptyItem;
+        eat( nutrition( hand.get(0).type ), hand.get(0).type );
+        //selectedItem = emptyItem;
+        hand.remove(0);
       }
       else if( mouseY > height*2.25/7 && mouseX < width*4/5) //clicked in order area
       { 
@@ -859,19 +951,17 @@ void mousePressed()
         {
           orders[int(mouseX/( width/5 ))].dumping = true;
         }
-        else if( !orders[int(mouseX/( width/5 ))].empty && !orders[int(mouseX/( width/5 ))].dumping && !orders[int(mouseX/( width/5 ))].finished ) // <- ADD ITEM
+        else if( hand.size() > 1 && !orders[int(mouseX/( width/5 ))].empty && !orders[int(mouseX/( width/5 ))].dumping && !orders[int(mouseX/( width/5 ))].finished ) // <- ADD ITEM
         {
-          selectedItem.xPos = mouseX;
-          orders[int(mouseX/( width/5 ))].plate.add( selectedItem );
-          selectedItem = emptyItem;
+          hand.get(0).xPos = mouseX;
+          orders[int(mouseX/( width/5 ))].plate.add( /*selectedItem*/ hand.remove(0) );
         }
       }
       else if( mouseY > height/7 && mouseY < height*2/7 && mouseX < width*4/5 ) //clicked on grill
       {
-        if( grillSpaceAvailable( mouseX, mouseY ) )
+        if( hand.size() > 1 && grillSpaceAvailable( mouseX, mouseY ) )
         {
-          grillItems.add( new Item( selectedItem, mouseX, mouseY ) );
-          selectedItem = emptyItem;
+          grillItems.add( new Item( hand.remove(0), mouseX, mouseY ) );
         }
       }
     }
@@ -895,7 +985,7 @@ void mousePressed()
       {
         typingHighScore = false; //<>//
         showingScores = true;
-        highScores[highScores.length-1] = new Score( name, int(cash), int(random(20)) );
+        highScores[highScores.length-1] = new Score( name, calculateScore() );
         sortScores();
         saveGame();
       }
@@ -910,7 +1000,8 @@ void mousePressed()
 void reset()
 {
   shuffleOrderDelays();
-  selectedItem = emptyItem;
+  hand.clear();
+  hand.add( emptyItem );
   grillItems.clear();
   futureOrders.clear();
   orders[0]=orders[1]=orders[2]=orders[3]=emptyOrder;
@@ -940,14 +1031,13 @@ void displayScores()
   fill(0,0,0);
   textSize(height/20);
   tint(255);
-  //for( int i = 0; i < highScores.length; i++ )
   for( int i = 0; i < 10; i++ )
   {
     textAlign(RIGHT);
     text(highScores[i].name+"   ",width/2,height/11.0*(i+1));
     textAlign(LEFT);
-    text("   "+highScores[i].cash,width/2,height/11.0*(i+1));
-    //image( itemImages[ highScores[i].food ], width/2, height/11.0*(i+1)-20 );
+    text("   "+highScores[i].points,width/2,height/11.0*(i+1));
+    image( scoreImage( i ), width/2, height/11.0*(i+1)-20, 50,50 );
   }
   push();
   noFill();
@@ -958,6 +1048,23 @@ void displayScores()
   rect(width-75,height-75,150,150);
   text("NEW\nGAME",width-75,height-85);
   pop();
+}
+
+PImage scoreImage( int i )
+{
+  switch(i)
+  {
+    case 0:  return platedImages[0];
+    case 1:  return platedImages[10];
+    case 2:  return platedImages[5];
+    case 3:  return platedImages[4];
+    case 4:  return platedImages[8];
+    case 5:  return platedImages[11];
+    case 6:  return platedImages[6];
+    case 7:  return platedImages[16];
+    case 8:  return platedImages[9];
+    default: return platedImages[1];
+  }
 }
 
 char checkForLetter()
@@ -991,9 +1098,9 @@ void sortScores()
     highestIndex = 0;
     for( int j = 0; j < highScores.length; j++)
     {
-      if( highScores[j].cash > highestScore )
+      if( highScores[j].points > highestScore )
       {
-        highestScore = highScores[j].cash;
+        highestScore = highScores[j].points;
         highestIndex = j;
       }
     }
@@ -1009,7 +1116,7 @@ void handleHighScore()
   rectMode(CENTER);
   if( !showingScores && millis() > typeTimer )
   {
-    if( cash > highScores[highScores.length-1].cash )
+    if( cash > highScores[highScores.length-1].points )
       typingHighScore = true;
     else
       showingScores = true;
@@ -1025,12 +1132,36 @@ void handleHighScore()
   rectMode(CORNER);
 }
 
+int calculateScore()
+{
+  int result = cash*10;  //1000 points for every dollar
+  result += 15000 * ( satisfaction/100.0 ); //up to 10000 for cusutomer satisfaction
+  result += (level-1) * 5000; //5000 points per upgrade level
+  int timeBonus = (time-480)*10;
+  if( time >= 1440 )
+    timeBonus = 15000;
+  result += timeBonus; 
+  return result;
+}
+
 void drawScore()
 {
   push();
   textSize(50);
-  fill(255);
-  text("Score: " + int(cash),width/2,height/2);
+  fill(0);
+  text("Score: " + calculateScore(),width/2,height*0.42);
+  text("Cash: " + cash*10,width/3,height*0.52);
+  text("Yelp Review: " + int(10000 * ( satisfaction/100.0 )),width/3,height*0.62);
+  if( time >= 1440 )
+    text("Time: 10000",width*2/3,height*0.52);
+  else
+    text("Time: " + (time - 480)*10,width*2/3,height*0.52);
+  text("Upgrades: " + (level-1) * 5000,width*2/3,height*0.62);
+  textSize(100);
+  if(wonGame)
+    text("CLOSING TIME!",width/2,height/6);
+  else
+    text("SHUT DOWN by order of FDA",width/2,height/6);
   pop();
 }
 
@@ -1042,8 +1173,10 @@ void drawQwerty()
   textSize(30);
   for(int i = 0; i < 27; i++)
   {
-    noFill();
-    stroke(0,0,0);
+    //noFill();
+    strokeWeight(4);
+    fill(150);
+    stroke(180);
     if( i < 10 )
     {
       rect( width/2+50-(5*100)+(100*i), (height*2/3)+40, 90, 90);
@@ -1063,13 +1196,15 @@ void drawQwerty()
       text( qwerty[i], width/2+50-(4*100)+(100*(i-19)), (height*2/3)+250 );
     }
   }
-  noFill();
+  strokeWeight(4);
+  fill(150);
+  stroke(180);
   rect(width/6,height*4/5,200,100);
-  text("DELETE",width/6,height*4/5+10);
   rect(width*5/6,height*4/5,200,100);
+  fill(0);
+  text("DELETE",width/6,height*4/5+10);
   text("ENTER",width*5/6,height*4/5+10);
 }
-
 
 //***********************FILE I/O****************************//
 void saveGame()
@@ -1080,8 +1215,7 @@ void saveGame()
     for(int i = 0; i < highScores.length; i++)
     {
       pw.println( highScores[i].name );
-      pw.println( highScores[i].cash );
-      pw.println( highScores[i].food );
+      pw.println( highScores[i].points );
     }
     
     pw.flush(); //Writes the remaining data to the file
@@ -1100,9 +1234,9 @@ void loadGame()
   try
   {
     data = loadStrings("highScores.txt");
-    for(; i < data.length; i+=3)
+    for(; i < data.length; i+=2)
     {
-      highScores[i/3] = new Score( data[i], Integer.parseInt(data[i+1]), Integer.parseInt(data[i+2]) );
+      highScores[i/2] = new Score( data[i], Integer.parseInt(data[i+1]) );
     }
   }
   catch(Exception e)
@@ -1136,6 +1270,7 @@ enum Type
   WELL_DONE,  //17
   
   RUINED,     //18
+  TOAST,      //20
   
   NONE
 }

@@ -1,3 +1,5 @@
+//The fifteen ingredient buttons at the top of the screen
+
 class Button
 {
   float xPos, yPos;
