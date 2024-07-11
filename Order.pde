@@ -280,7 +280,7 @@ class Order
           name = "The works";
         else
           name = "The goat";
-        price = 600;
+        price = 800;
         reqs.add( Type.PATTY );
         reqs.add( Type.KATCHUP );
         reqs.add( Type.LETTUCE );
@@ -567,10 +567,10 @@ class Order
   
   boolean checkOrder()
   { 
-    for( Type t: reqs )
-      println(t);
-    for( Item i: plate )
-      println(i.type);
+    //for( Type t: reqs )
+    //  println(t);
+    //for( Item i: plate )
+    //  println(i.type);
     ArrayList<Type> tempReq = new ArrayList<Type>();
     tempReq.addAll(reqs);
     

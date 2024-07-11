@@ -18,7 +18,7 @@ boolean noFail = false;
 int orderDelays[] = {0,0,0,0,5,5,5,10,10,15,15,20,20,25,25,30,30,35,35,40,40,45,55,50,50,50,55,55,60,60};
 ArrayList<Order> futureOrders = new ArrayList<Order>();
 
-//Lists for items on grill or in hand
+//Lists for items on grill or in hand (I created stacks - probably should have just used Stacks)
 Item emptyItem = new Item(-1);
 ArrayList<Item> hand = new ArrayList<Item>();
 ArrayList<Item> grillItems = new ArrayList<Item>();
@@ -378,7 +378,7 @@ void loadImages()
   platedImages[9] = loadImage("pickleSlice.png");    platedImages[9].resize(itemSize,0);
   platedImages[10] = loadImage("onionRings2.png");   platedImages[10].resize(itemSize,0);
   platedImages[11] = loadImage("bigBacon.png");      platedImages[11].resize(itemSize,0);
-  platedImages[12] = loadImage("shroom5.png");      platedImages[12].resize(itemSize,0);
+  platedImages[12] = loadImage("shroom5.png");       platedImages[12].resize(itemSize,0);
   platedImages[13] = loadImage("friedEgg.png");      platedImages[13].resize(itemSize,0);
   platedImages[14] = loadImage("avocadoSlices.png"); platedImages[14].resize(itemSize,0);
   
